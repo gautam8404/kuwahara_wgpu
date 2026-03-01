@@ -13,6 +13,7 @@ pub struct KuwaharaApp {
     gpu: Option<GpuProcessor>,
     filter_applied: bool,
     refresh_pass: bool,
+    show_original: bool,
     status: Option<String>,
     file_receiver: Receiver<Vec<u8>>,
     file_sender: Sender<Vec<u8>>,
@@ -35,6 +36,7 @@ impl KuwaharaApp {
             gpu: None,
             filter_applied: false,
             refresh_pass: false,
+            show_original: false,
             status: None,
             file_receiver,
             file_sender,
@@ -168,7 +170,6 @@ impl KuwaharaApp {
 impl eframe::App for KuwaharaApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.handle_dropped_files(ctx, frame);
-        let mut show_og = false;
 
         if let Ok(bytes) = self.file_receiver.try_recv() {
             self.load_image(bytes, frame);
@@ -245,7 +246,6 @@ impl eframe::App for KuwaharaApp {
                         .changed();
                 });
 
-
                 ui.horizontal(|ui| {
                     let mut dither_bool = self.params.dithering > 0;
 
@@ -259,11 +259,9 @@ impl eframe::App for KuwaharaApp {
 
                 ui.horizontal(|ui| {
                     changed |= ui
-                        .button("Compare")
-                        .clicked();
+                        .checkbox(&mut self.show_original, "Show Original")
+                        .changed()
                 });
-
-
 
                 ui.add_space(8.);
                 ui.separator();
@@ -301,7 +299,7 @@ impl eframe::App for KuwaharaApp {
 
             let processor = self.gpu.as_ref().unwrap();
             let mut tex_id = processor.egui_texture_id;
-            if !self.filter_applied || show_og {
+            if !self.filter_applied || self.show_original {
                 // self.show_input_preview(ui);
                 tex_id = processor.input_egui_texture_id;
             }
