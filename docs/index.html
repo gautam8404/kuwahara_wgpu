@@ -7,8 +7,8 @@
     <!-- Pin wasm-bindgen CLI to match the crate version -->
     
 <script type="module">
-import init, * as bindings from '/kuwahara-filter-76cc283d2e82307b.js';
-const wasm = await init({ module_or_path: '/kuwahara-filter-76cc283d2e82307b_bg.wasm' });
+import init, * as bindings from '/kuwahara-filter/kuwahara-filter-76cc283d2e82307b.js';
+const wasm = await init({ module_or_path: '/kuwahara-filter/kuwahara-filter-76cc283d2e82307b_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -31,7 +31,7 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
             height: 100% !important;
         }
     </style>
-<link rel="modulepreload" href="/kuwahara-filter-76cc283d2e82307b.js" crossorigin="anonymous" integrity="sha384-bNHsdiGA3qmGin6p0QsAyDKJsEnHiogtss/lrxG7ViKeU6JGorc3TI4/P9Nn8j4c"><link rel="preload" href="/kuwahara-filter-76cc283d2e82307b_bg.wasm" crossorigin="anonymous" integrity="sha384-zl1QmKbVYD+XR6MUkQTYiiw1lWbSZbrVjI6tX1H71sIT6XRdQpECET23n0ArQq6X" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/kuwahara-filter/kuwahara-filter-76cc283d2e82307b.js" crossorigin="anonymous" integrity="sha384-bNHsdiGA3qmGin6p0QsAyDKJsEnHiogtss/lrxG7ViKeU6JGorc3TI4/P9Nn8j4c"><link rel="preload" href="/kuwahara-filter/kuwahara-filter-76cc283d2e82307b_bg.wasm" crossorigin="anonymous" integrity="sha384-zl1QmKbVYD+XR6MUkQTYiiw1lWbSZbrVjI6tX1H71sIT6XRdQpECET23n0ArQq6X" as="fetch" type="application/wasm"></head>
 <body>
     <canvas id="the_canvas_id"></canvas>
 </body>
