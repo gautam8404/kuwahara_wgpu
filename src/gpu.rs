@@ -1,15 +1,16 @@
 use crate::params::FilterParams;
-use anyhow::Result;
-use eframe::egui::{Image, TextureId};
+use anyhow::{anyhow, Result};
+use eframe::egui::{Image, TextureId, Vec2};
 use eframe::wgpu::TextureViewDescriptor;
 use eframe::wgpu::{self, TextureUsages};
 use encase::{ShaderType, UniformBuffer};
+use futures;
 use image;
 use wgpu::include_wgsl;
 
 pub struct GpuProcessor {
     input_texture: wgpu::Texture,
-    output_texture: wgpu::Texture,
+    pub output_texture: wgpu::Texture,
     output_view: wgpu::TextureView,
     input_view: wgpu::TextureView,
     sobel_texture: wgpu::Texture,
@@ -241,6 +242,7 @@ impl GpuProcessor {
         queue.submit(Some(compute_encoder.finish()));
     }
 
+
     pub fn update_egui_texture(&self, render_state: &eframe::egui_wgpu::RenderState) {
         render_state
             .renderer
@@ -391,4 +393,83 @@ pub fn create_compute_pipeline_with_view(
         bind_group,
         bind_group_layout,
     ))
+}
+
+pub async fn readback_image(
+    image_width: u32,
+    image_height: u32,
+    output_texture: wgpu::Texture,
+    render_state: &eframe::egui_wgpu::RenderState,
+) -> Result<Vec<u8>> {
+    let (device, queue) = (&render_state.device, &render_state.queue);
+    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let unpadded_bytes_per_row = image_width * 4;
+    let padding = (align - (unpadded_bytes_per_row % align)) % align;
+    let padded_bytes_per_row = unpadded_bytes_per_row + padding;
+    let buffer_size = (padded_bytes_per_row * image_height) as wgpu::BufferAddress;
+
+    let readback_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("Readback Buffer"),
+        size: buffer_size,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("Readback Encoder"),
+    });
+
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &output_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback_buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(padded_bytes_per_row),
+                rows_per_image: Some(image_height),
+            },
+        },
+        wgpu::Extent3d {
+            width: image_width,
+            height: image_height,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    queue.submit(Some(encoder.finish()));
+
+    let buffer_slice = readback_buffer.slice(..);
+
+    let (sender, receiver) = futures::channel::oneshot::channel();
+
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        let _ = sender.send(res);
+    });
+
+    let width = image_width;
+    let height = image_height;
+    let _ = device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    });
+
+    let map_result = receiver.await.map_err(|_| anyhow!("Channel cancelled"))?;
+
+    map_result.map_err(|e| anyhow!("GPU error: {:?}", e))?;
+
+    let data = buffer_slice.get_mapped_range();
+    let mut pixels = Vec::with_capacity((unpadded_bytes_per_row * image_height) as usize);
+
+    for chunk in data.chunks(padded_bytes_per_row as usize) {
+        pixels.extend_from_slice(&chunk[..unpadded_bytes_per_row as usize]);
+    }
+
+    drop(data);
+    readback_buffer.unmap();
+    Ok(pixels)
 }

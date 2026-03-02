@@ -10,13 +10,20 @@ struct FilterParams {
   num_sectors: u32,
   blur_kernel_size: u32,
   blur_sigma: f32,
-  dithering: u32
+  dithering: u32,
+  dithering_str: f32
 }
 
-fn get_dither_noise(pixel_coords: vec2<f32>) -> f32 {
-    let magic_numbers = vec3<f32>(0.06711056, 0.00583715, 52.9829189);
-    let dot_product = dot(pixel_coords, magic_numbers.xy);
-    return fract(magic_numbers.z * fract(dot_product));
+
+fn get_dither_noise(pixel_coords: vec2<f32>, col: vec3<f32>) -> vec3<f32> {
+    let magic = vec3<f32>(0.06711056, 0.00583715, 52.9829189);
+    
+    let noise = fract(magic.z * fract(dot(pixel_coords, magic.xy)));
+    
+    let strength = 0.6;
+    let centered_noise = (noise - 0.5) * params.dithering_str;
+    
+    return saturate(col + vec3<f32>(centered_noise));
 }
 
 
@@ -140,9 +147,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let original_alpha = textureLoad(input_texture, coords, 0).a;
 
     if params.dithering > 0 {
-        let noise = get_dither_noise(vec2<f32>(coords));
-        let dither_str = 1.0/255.0 * 50.0;
-        final_color += (noise - 0.5) * dither_str;
+        let noise = get_dither_noise(vec2<f32>(coords), final_color.rgb);
+        final_color = vec4(noise.rgb, 1.0);
     }
     
 

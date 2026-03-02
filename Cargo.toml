@@ -21,6 +21,7 @@ log = "0.4"
 rfd = {version = "0.17.2", features = ["file-handle-inner"]}
 pollster = "0.4"
 encase = "0.12.0"
+futures = "0.3"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pretty_env_logger = "0.5"

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::{gpu::GpuProcessor, params::FilterParams};
 use eframe::{egui, egui_wgpu};
 use log;
@@ -5,6 +6,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 
 #[cfg(not(target_arch = "wasm32"))]
 use pollster;
+use crate::gpu::readback_image;
 
 pub struct KuwaharaApp {
     render_state: Option<egui_wgpu::RenderState>,
@@ -95,20 +97,6 @@ impl KuwaharaApp {
                 }
             });
         }
-        // {
-        //     if let Some(path) = rfd::FileDialog::new()
-        //         .add_filter("Images", &["png", "jpg", "jpeg", "bmp", "webp"])
-        //         .pick_file()
-        //     {
-        //         match std::fs::read(&path) {
-        //             Ok(bytes) => self.load_image(bytes),
-        //             Err(e) => {
-        //                 self.status = Some(format!("Failed to read file: {e}"));
-        //             }
-        //         }
-        //     }
-        // }
-
         #[cfg(target_arch = "wasm32")]
         {
             // self.status = Some("On web, drag & drop an image onto the window".to_string());
@@ -164,6 +152,96 @@ impl KuwaharaApp {
             self.apply_filter(frame);
         }
         self.refresh_pass = false;
+    }
+
+    fn save_image(&mut self, frame: &eframe::Frame) {
+        if !self.filter_applied {
+            self.status = Some("filter is not applied".to_string());
+            return;
+        }
+
+        let Some(render_state) = frame.wgpu_render_state() else {
+            return;
+        };
+        let Some(gpu) = self.gpu.as_ref() else { return };
+
+
+        // Get the owned Future without locking up `&self`
+        // let readback_future = match gpu.readback_image(&render_state) {
+        //     Ok(fut) => fut,
+        //     Err(e) => {
+        //         log::error!("Could not initiate readback: {e}");
+        //         return;
+        //     }
+        // };
+        //
+
+        // Assuming self.gpu is a struct that holds the texture and dimensions
+        // If readback_image requires &self, we might need to wrap the GPU state in an Arc
+        // or pass the specific fields needed.
+        let width = gpu.image_width;
+        let height = gpu.image_height;
+        let output_texture = gpu.output_texture.clone();
+        let render_state = render_state.clone();
+
+        // 2. Define the entire sequence as one async task
+        let task = async move {
+            // Create a pseudo render_state for the async function
+            let rs = render_state;
+
+            let pixels = match readback_image(
+                width,
+                height,
+                output_texture,
+                &rs
+            ).await {
+                Ok(p) => p,
+                Err(e) => {
+                    log::error!("GPU Readback failed: {e:?}");
+                    return;
+                }
+            };
+
+            // Encode the image
+            let mut image_data = Vec::new();
+            let mut cursor = std::io::Cursor::new(&mut image_data);
+            if let Err(e) = image::write_buffer_with_format(
+                &mut cursor,
+                &pixels,
+                width,
+                height,
+                image::ColorType::Rgba8,
+                image::ImageFormat::Png,
+            ) {
+                log::error!("Encoding error: {e:?}");
+                return;
+            }
+
+            // Save the file
+            if let Some(fd) = rfd::AsyncFileDialog::new()
+                .add_filter("PNG Image", &["png"])
+                .set_file_name("filtered_image.png")
+                .save_file()
+                .await
+            {
+                if let Err(e) = fd.write(&image_data).await {
+                    log::error!("Write error: {e:?}");
+                } else {
+                    log::info!("File saved successfully");
+                }
+            }
+        };
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            std::thread::spawn(move || {
+                pollster::FutureExt::block_on(task);
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(task);
+        }
     }
 }
 
@@ -258,6 +336,13 @@ impl eframe::App for KuwaharaApp {
                 });
 
                 ui.horizontal(|ui| {
+                    ui.label("Dither Strength");
+                    changed |= ui
+                        .add(egui::Slider::new(&mut self.params.dithering_str, 0.0..=1.0))
+                        .changed();
+                });
+
+                ui.horizontal(|ui| {
                     changed |= ui
                         .checkbox(&mut self.show_original, "Show Original")
                         .changed()
@@ -277,6 +362,13 @@ impl eframe::App for KuwaharaApp {
 
                 if has_image {
                     ui.label(format!("Filter Applied: {}", self.filter_applied));
+                }
+
+                if has_image && self.filter_applied {
+                    if ui.add(egui::Button::new("Save Image")).clicked() {
+                        self.save_image(frame);
+                        self.status = Some("file saved succesfully".to_string());
+                    }
                 }
 
                 if changed {

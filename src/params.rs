@@ -8,7 +8,8 @@ pub struct FilterParams {
     pub num_sectors: u32,
     pub blur_kernel_size: u32,
     pub blur_sigma: f32,
-    pub dithering: u32
+    pub dithering: u32,
+    pub dithering_str: f32,
 }
 
 impl Default for FilterParams {
@@ -19,8 +20,9 @@ impl Default for FilterParams {
             eccentricity: 1.0,
             num_sectors: 8,
             blur_kernel_size: 6,
-            blur_sigma:  3.0,
-            dithering: 0
+            blur_sigma: 3.0,
+            dithering: 0,
+            dithering_str: 0.5,
         }
     }
 }
