@@ -5,7 +5,8 @@
 
 struct FilterParams {
   kernerl_radius: f32,
-  sharpness: f32,
+  hardness: f32,
+  q_value: f32,  
   alpha: f32,
   num_sectors: u32,
   blur_kernel_size: u32,
@@ -78,8 +79,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let max_y = i32(sqrt(a * a * sin_phi * sin_phi + b * b * cos_phi * cos_phi));
 
     let zeta = 2.0/params.kernerl_radius;
-    let sinZeroCross = sin(0.58);
-    let eta = (zeta + cos(0.58)) / (sinZeroCross * sinZeroCross);
+    let sinZeroCross = sin(0.392699);
+    let eta = (zeta + cos(0.392699)) / (sinZeroCross * sinZeroCross);
 
     // Arrays to hold sector sums
     var m: array<vec4<f32>, 8>; // Color sum
@@ -137,8 +138,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         s[k] = abs(s[k] / m[k].w - m[k].rgb * m[k].rgb);
 
         let sigma2 = s[k].r + s[k].g + s[k].b;
-        let w = 1.0 / (1.0 + pow(params.sharpness * 1000.0 * sigma2, 0.5 * 8.0)); // Q parameter hardcoded to 8.0
-
+        let w = 1.0 / (1.0 + pow(params.hardness * 1000.0 * sigma2, params.q_value)); 
         final_color += vec4<f32>(m[k].rgb * w, w);
     }
 

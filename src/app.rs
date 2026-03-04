@@ -1,12 +1,12 @@
-use std::sync::Arc;
 use crate::{gpu::GpuProcessor, params::FilterParams};
 use eframe::{egui, egui_wgpu};
 use log;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::Arc;
 
+use crate::gpu::readback_image;
 #[cfg(not(target_arch = "wasm32"))]
 use pollster;
-use crate::gpu::readback_image;
 
 pub struct KuwaharaApp {
     render_state: Option<egui_wgpu::RenderState>,
@@ -165,7 +165,6 @@ impl KuwaharaApp {
         };
         let Some(gpu) = self.gpu.as_ref() else { return };
 
-
         // Get the owned Future without locking up `&self`
         // let readback_future = match gpu.readback_image(&render_state) {
         //     Ok(fut) => fut,
@@ -189,12 +188,7 @@ impl KuwaharaApp {
             // Create a pseudo render_state for the async function
             let rs = render_state;
 
-            let pixels = match readback_image(
-                width,
-                height,
-                output_texture,
-                &rs
-            ).await {
+            let pixels = match readback_image(width, height, output_texture, &rs).await {
                 Ok(p) => p,
                 Err(e) => {
                     log::error!("GPU Readback failed: {e:?}");
@@ -292,21 +286,21 @@ impl eframe::App for KuwaharaApp {
                 ui.horizontal(|ui| {
                     ui.label("Sharpness");
                     changed |= ui
-                        .add(egui::Slider::new(&mut self.params.sharpness, 6.0..=12.0))
+                        .add(egui::Slider::new(&mut self.params.sharpness, 6.0..=120.0))
+                        .changed();
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Q value");
+                    changed |= ui
+                        .add(egui::Slider::new(&mut self.params.q_value, 2.0..=20.0))
                         .changed();
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Eccentricity");
                     changed |= ui
-                        .add(egui::Slider::new(&mut self.params.eccentricity, 0.0..=2.0))
-                        .changed();
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Sectors");
-                    changed |= ui
-                        .add(egui::Slider::new(&mut self.params.num_sectors, 4..=16))
+                        .add(egui::Slider::new(&mut self.params.eccentricity, 0.0..=10.0))
                         .changed();
                 });
 

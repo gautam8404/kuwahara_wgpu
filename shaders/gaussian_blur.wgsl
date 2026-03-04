@@ -3,12 +3,15 @@
 @group(0) @binding(2) var<uniform> filter_params: FilterParams;
 
 struct FilterParams {
-  kernerl_radius: f32,
-  sharpness: f32,
-  eccentricity: f32,
-  num_sectors: u32,
-  blur_kernel_size: u32,
-  blur_sigma: f32
+    kernel_radius: f32,
+    sharpness: f32,
+    q_value: f32,
+    eccentricity: f32,
+    num_sectors: u32,
+    blur_kernel_size: u32,
+    blur_sigma: f32,
+    dithering: u32,
+    dithering_str: f32,
 }
 
 
@@ -30,6 +33,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   let radius = i32(filter_params.blur_kernel_size);
   let sigma = filter_params.blur_sigma;
+  let sigma_2 = sigma * sigma;
 
   var color = vec3<f32>(0.0);
   var weight_sum = 0.0;
@@ -41,7 +45,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let ncol = textureLoad(input_texture, ncord, 0).rgb;
 
         let distance_squared = f32(x * x + y * y);
-        let weight = exp(-distance_squared / (2.0 * sigma * sigma));
+        let weight = exp(-distance_squared / (2.0 * sigma_2));
 
         color += ncol * weight;
         weight_sum += weight;
