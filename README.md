@@ -1,4 +1,4 @@
-# Kuwahara Filter
+# Anisotropic Kuwahara Filter
 
 I made this as a learning project and starting steps to learn graphics programming, this was my first time using a graphics api and making something with it and also using compute shader
 
